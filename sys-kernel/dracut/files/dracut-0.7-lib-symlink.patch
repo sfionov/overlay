@@ -1,0 +1,16 @@
+diff --git a/dracut b/dracut
+index f738a63..f78102c 100755
+--- a/dracut
++++ b/dracut
+@@ -162,6 +162,11 @@ if [[ "$kernel_only" != "yes" ]]; then
+     done
+ fi
+ 
++if [[ -L /lib ]]; then
++    cp -d /lib "$initdir"
++    mkdir -p "$initdir/$(readlink -m -- /lib)"
++fi
++
+ # check all our modules to see if they should be sourced.
+ # This builds a list of modules that we will install next.
+ check_modules

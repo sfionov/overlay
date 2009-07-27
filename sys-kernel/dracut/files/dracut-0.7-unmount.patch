@@ -1,0 +1,29 @@
+diff -urN dracut-0.7.orig/switch_root.c dracut-0.7/switch_root.c
+--- dracut-0.7.orig/switch_root.c	2009-07-24 18:01:11.000000000 +0200
++++ dracut-0.7/switch_root.c	2009-07-26 17:29:46.716460781 +0200
+@@ -160,22 +160,15 @@
+ static int switchroot(const char *newroot)
+ {
+ 	/*  Don't try to unmount the old "/", there's no way to do it. */
+-	const char *umounts[] = { "/dev", "/proc", "/sys", NULL };
++	const char *umounts[] = { "/dev/pts", "/dev", "/proc", "/sys", NULL };
+ 	char *newroot_mnt;
+ 	const char *chroot_path = NULL;
+ 	int i;
+ 	int r = -1;
+ 
+ 	for (i = 0; umounts[i] != NULL; i++) {
+-		char newmount[PATH_MAX];
+-
+-		snprintf(newmount, sizeof(newmount), "%s%s", newroot, umounts[i]);
+-
+-		if (mount(umounts[i], newmount, NULL, MS_MOVE, NULL) < 0) {
+-			warn("failed to mount moving %s to %s",
+-				umounts[i], newmount);
+-			warnx("forcing unmount of %s", umounts[i]);
+-			umount2(umounts[i], MNT_FORCE);
++		if (umount2(umounts[i], MNT_FORCE) < 0) {
++			warn("failed to unmount %s", umounts[i]);
+ 		}
+ 	}
+

@@ -1,0 +1,37 @@
+diff --git a/dracut b/dracut
+index f738a63..a177459 100755
+--- a/dracut
++++ b/dracut
+@@ -139,6 +139,9 @@ srcmods="/lib/modules/$kernel/"
+ [ -n "$drivers_dir" ] && srcmods="$drivers_dir"
+ export srcmods
+ 
++# On Gentoo /boot is not mounted automatically
++mount_boot $outfile
++
+ if [[ -f $outfile && ! $force ]]; then
+     echo "Will not override existing initramfs ($outfile) without --force"
+     exit 1
+diff --git a/dracut-functions b/dracut-functions
+index d4caacf..6c7c1e8 100755
+--- a/dracut-functions
++++ b/dracut-functions
+@@ -342,4 +342,18 @@ instmods() {
+     done
+ } 
+ 
++mount_boot() {
++    local bootdir=${bootdir:-"/boot"}
++    if [[ "$1" =~ "$bootdir" ]] ; then
++	if ! egrep -q "[[:space:]]${bootdir}[[:space:]]" /proc/mounts; then
++	    if egrep -q "^[^#].+[[:space:]]${bootdir}[[:space:]]" /etc/fstab; then
++		dinfo "Mounting $bootdir"
++		if ! mount "$bootdir"; then
++		    dwarning "Failed to mount $bootdir"
++		fi
++	    fi
++	fi
++    fi
++}
++
+ # vim:ts=8:sw=4:sts=4:et
