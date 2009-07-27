@@ -14,6 +14,7 @@ KEYWORDS="~x86 ~amd64"
 IUSE=""
 DEPEND=""
 RDEPEND="app-arch/cpio
+	 >=app-shells/bash-4.0
 	 sys-fs/udev
 	 sys-apps/util-linux
 	 sys-apps/module-init-tools
