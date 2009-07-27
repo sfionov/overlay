@@ -1,0 +1,14 @@
+diff --git a/dracut b/dracut
+index f738a63..b411675 100755
+--- a/dracut
++++ b/dracut
+@@ -162,6 +162,9 @@ if [[ "$kernel_only" != "yes" ]]; then
+     done
+ fi
+ 
++# On Gentoo /lib may be symlink to /lib64 or /lib32
++[[ -L /lib ]] && cp -d /lib $initdir
++
+ # check all our modules to see if they should be sourced.
+ # This builds a list of modules that we will install next.
+ check_modules
