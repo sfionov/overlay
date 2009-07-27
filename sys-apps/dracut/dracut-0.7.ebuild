@@ -35,10 +35,6 @@ src_unpack() {
 	sed -i -e "s/#omit_dracutmodules=\"\"/omit_dracutmodules=\"terminfo\"/" dracut.conf
 }
 
-src_compile() {
-	emake || die "emake failed"
-}
-
 src_install() {
 	emake DESTDIR="${D}" sysconfdir=/etc install || die "failed install"
 	dodoc AUTHORS COPYING HACKING README README.generic README.kernel README.modules
