@@ -28,7 +28,7 @@ index d4caacf..162d816 100755
 +		if ! mount /boot; then
 +		    dwarning "Failed to mount $bootdir"
 +		else
-+		    dinfo "/boot mounted successfully"
++		    dinfo "$bootdir mounted successfully"
 +		fi
 +	    fi
 +	fi
