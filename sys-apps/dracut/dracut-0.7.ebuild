@@ -32,7 +32,7 @@ src_unpack() {
 	# /boot is not mounted automatically
 	epatch "${FILESDIR}"/dracut-mount-boot.patch
 	# There is no /lib/terminfo on Gentoo
-	sed -i -e "s/#omit_dracutmodules=\"\"/omit_dracutmodules=\"terminfo\"/" dracut.conf
+	epatch "${FILESDIR}"/dracut-terminfo.patch
 }
 
 src_install() {
