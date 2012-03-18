@@ -28,5 +28,12 @@ start() {
 stop() {
 	ebegin "Stopping xl2tpd"
 	start-stop-daemon --stop --quiet --pidfile /var/run/xl2tpd.pid
-	eend $?
+	rc=$?
+	
+	if [[ ${RC_CMD} == "restart" ]]; then
+		einfo "sleepinng for server to finalize connections"
+		sleep 3
+	fi
+	
+	eend ${rc}
 }
