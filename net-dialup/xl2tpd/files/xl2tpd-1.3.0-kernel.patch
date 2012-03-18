@@ -1,21 +1,21 @@
+diff --git a/Makefile b/Makefile
+index 6f6481f..778f38d 100644
+--- a/Makefile
++++ b/Makefile
+@@ -62,7 +62,7 @@ OSFLAGS?= -DLINUX -I$(KERNELSRC)/include/
+ # are packages seperately (eg kernel-headers on Fedora)
+ # Note: 2.6.23+ support still needs some changes in the xl2tpd source
+ #
+-#OSFLAGS+= -DUSE_KERNEL
++OSFLAGS+= -DUSE_KERNEL
+ #
+ #
+ # Uncomment the next line for FreeBSD
 diff --git a/call.c b/call.c
-index d1b1858..d5855a1 100644
+index d1b1858..b672f91 100644
 --- a/call.c
 +++ b/call.c
-@@ -407,6 +407,12 @@ void destroy_call (struct call *c)
-     /*
-      * Close the tty
-      */
-+#ifdef USE_KERNEL
-+    if (kernel_support) {
-+        if (c->fd > 0)
-+            shutdown (c->fd, SHUT_RDWR);
-+    }
-+#endif
-     if (c->fd > 0)
-         close (c->fd);
- /*	if (c->dethrottle) deschedule(c->dethrottle); */
-@@ -680,6 +686,8 @@ struct call *get_call (int tunnel, int call,  struct in_addr addr, int port,
+@@ -680,6 +680,8 @@ struct call *get_call (int tunnel, int call,  struct in_addr addr, int port,
          st->peer.sin_port = port;
  	st->refme  = refme;
  	st->refhim = refhim;
@@ -103,29 +103,65 @@ index a7d6a22..0795e4a 100644
   * DEBUG	- bitmask of debug message categories
   * SENDSEQ	- 0 => don't send packets with sequence numbers
 diff --git a/network.c b/network.c
-index 241bd82..12b15a3 100644
+index 241bd82..f354129 100644
 --- a/network.c
 +++ b/network.c
-@@ -2,6 +2,7 @@
-  * Layer Two Tunnelling Protocol Daemon
-  * Copyright (C) 1998 Adtran, Inc.
-  * Copyright (C) 2002 Jeff McAdams
-+ * Portions copyright (c) 2011 wl500g.googlecode.com project
-  *
-  * Mark Spencer
-  *
-@@ -52,6 +53,10 @@ int init_network (void)
+@@ -22,6 +22,7 @@
+ #include <unistd.h>
+ #include <stdlib.h>
+ #include <sys/ioctl.h>
++#include <sys/wait.h>
+ #ifndef LINUX
+ # include <sys/uio.h>
+ #endif
+@@ -45,6 +46,7 @@ int init_network (void)
+     server.sin_family = AF_INET;
+     server.sin_addr.s_addr = gconfig.listenaddr; 
+     server.sin_port = htons (gconfig.port);
++    int flags;
+     if ((server_socket = socket (PF_INET, SOCK_DGRAM, 0)) < 0)
+     {
+         l2tp_log (LOG_CRIT, "%s: Unable to allocate socket. Terminating.\n",
+@@ -52,6 +54,10 @@ int init_network (void)
          return -EINVAL;
      };
  
-+    int flags=1;
++    flags = 1;
 +    setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &flags, sizeof(flags));
 +    setsockopt(server_socket, SOL_SOCKET, SO_NO_CHECK, &flags, sizeof(flags));
 +
      if (bind (server_socket, (struct sockaddr *) &server, sizeof (server)))
      {
          close (server_socket);
-@@ -321,6 +326,11 @@ int build_fdset (fd_set *readfds)
+@@ -91,7 +97,26 @@ int init_network (void)
+     }
+     else
+     {
+-        int kernel_fd = socket(AF_PPPOX, SOCK_DGRAM, PX_PROTO_OL2TP);
++        int pid, exit_status, kernel_fd, fd;
++        char * modules[] = { "pppol2tp", "l2tp_ppp", NULL };
++        char ** module;
++
++        /* try to load modules, ignore errors */
++        for (module = modules; *module != NULL; ++module) {
++            if ((pid = fork()) >= 0) {
++                if (pid == 0) {
++                    setenv("PATH", "/sbin:/usr/sbin:/bin:/usr/bin", 1);
++                    if ((fd = open("/dev/null", O_RDWR)) > -1)
++                        dup2(2, fd);
++                    execlp("modprobe", "modprobe", "-q", *module, (char *)NULL);
++                    exit(1);
++                } else {
++                    pid = waitpid(pid, &exit_status, 0);
++                }
++            }
++        }
++
++        kernel_fd = socket(AF_PPPOX, SOCK_DGRAM, PX_PROTO_OL2TP);
+         if (kernel_fd < 0)
+         {
+             l2tp_log (LOG_INFO, "L2TP kernel support not detected.\n");
+@@ -321,6 +346,11 @@ int build_fdset (fd_set *readfds)
  
  	while (tun)
  	{
@@ -137,13 +173,22 @@ index 241bd82..12b15a3 100644
  		call = tun->call_head;
  		while (call)
  		{
-@@ -428,7 +438,21 @@ void network_thread ()
+@@ -390,6 +420,8 @@ void network_thread ()
+     struct iovec iov;
+     char cbuf[256];
+     unsigned int refme, refhim;
++    int * currentfd;
++    int server_socket_processed;
+ 
+     /* This one buffer can be recycled for everything except control packets */
+     buf = new_buf (MAX_RECV_SIZE);
+@@ -428,7 +460,21 @@ void network_thread ()
          {
              do_control ();
          }
 -        if (FD_ISSET (server_socket, &readfds))
-+        int server_socket_processed = 0;
-+        int * currentfd = NULL;
++        server_socket_processed = 0;
++        currentfd = NULL;
 +        st = tunnels.head;
 +        while (st || !server_socket_processed) {
 +            if (st && (st->udp_fd == -1)) {
@@ -156,11 +201,11 @@ index 241bd82..12b15a3 100644
 +                currentfd = &server_socket;
 +                server_socket_processed = 1;
 +            }
-+        if (FD_ISSET (*currentfd, &readfds))
++            if (FD_ISSET (*currentfd, &readfds))
          {
              /*
               * Okay, now we're ready for reading and processing new data.
-@@ -457,12 +481,19 @@ void network_thread ()
+@@ -457,12 +503,19 @@ void network_thread ()
  	    msgh.msg_flags = 0;
  	    
  	    /* Receive one packet. */
@@ -181,7 +226,7 @@ index 241bd82..12b15a3 100644
                      if (errno != EAGAIN)
                          l2tp_log (LOG_WARNING,
                               "%s: recvfrom returned error %d (%s)\n",
-@@ -567,6 +598,8 @@ void network_thread ()
+@@ -567,6 +620,8 @@ void network_thread ()
  		}
  	    };
  	}
@@ -190,7 +235,7 @@ index 241bd82..12b15a3 100644
  
  	/*
  	 * finished obvious sources, look for data from PPP connections.
-@@ -639,3 +672,82 @@ void network_thread ()
+@@ -639,3 +694,82 @@ void network_thread ()
      }
  
  }
@@ -274,20 +319,10 @@ index 241bd82..12b15a3 100644
 +    return 0;
 +}
 diff --git a/xl2tpd.c b/xl2tpd.c
-index 307ac2e..5ee33f8 100644
+index 307ac2e..3fb6dd7 100644
 --- a/xl2tpd.c
 +++ b/xl2tpd.c
-@@ -250,7 +250,8 @@ void child_handler (int signal)
-                      * it
-                      */
- #ifdef USE_KERNEL
--                 if (!kernel_support)
-+                 if (kernel_support)
-+                    shutdown(c->fd, SHUT_RDWR);
- #endif
-                     close (c->fd);
-                     c->fd = -1;
-@@ -278,7 +279,11 @@ void death_handler (int signal)
+@@ -278,7 +278,11 @@ void death_handler (int signal)
      struct tunnel *st, *st2;
      int sec;
      l2tp_log (LOG_CRIT, "%s: Fatal signal %d received\n", __FUNCTION__, signal);
@@ -299,26 +334,16 @@ index 307ac2e..5ee33f8 100644
                  st = tunnels.head;
                  while (st)
                  {
-@@ -382,14 +387,14 @@ int start_pppd (struct call *c, struct ppp_opts *opts)
- #ifdef USE_KERNEL
-     if (kernel_support)
-     {
--       fd2 = socket(AF_PPPOX, SOCK_DGRAM, PX_PROTO_OL2TP);
--       if (fd2 < 0) {
-+       c->fd = socket(AF_PPPOX, SOCK_DGRAM, PX_PROTO_OL2TP);
-+       if (c->fd < 0) {
-            l2tp_log (LOG_WARNING, "%s: Unable to allocate PPPoL2TP socket.\n",
-                 __FUNCTION__);
-            return -EINVAL;
-        }
--       flags = fcntl(fd2, F_GETFL);
--       if (flags == -1 || fcntl(fd2, F_SETFL, flags | O_NONBLOCK) == -1) {
-+       flags = fcntl(c->fd, F_GETFL);
-+       if (flags == -1 || fcntl(c->fd, F_SETFL, flags | O_NONBLOCK) == -1) {
-            l2tp_log (LOG_WARNING, "%s: Unable to set PPPoL2TP socket nonblock.\n",
-                 __FUNCTION__);
-            return -EINVAL;
-@@ -397,7 +402,7 @@ int start_pppd (struct call *c, struct ppp_opts *opts)
+@@ -349,7 +353,7 @@ int start_pppd (struct call *c, struct ppp_opts *opts)
+     int flags;
+ #endif
+     int pos = 1;
+-    int fd2;
++    int fd2 = -1;
+ #ifdef DEBUG_PPPD
+     int x;
+ #endif
+@@ -397,7 +401,7 @@ int start_pppd (struct call *c, struct ppp_opts *opts)
         sax.sa_family = AF_PPPOX;
         sax.sa_protocol = PX_PROTO_OL2TP;
         sax.pppol2tp.pid = 0;
@@ -327,46 +352,51 @@ index 307ac2e..5ee33f8 100644
         sax.pppol2tp.addr.sin_addr.s_addr = c->container->peer.sin_addr.s_addr;
         sax.pppol2tp.addr.sin_port = c->container->peer.sin_port;
         sax.pppol2tp.addr.sin_family = AF_INET;
-@@ -405,16 +410,17 @@ int start_pppd (struct call *c, struct ppp_opts *opts)
-        sax.pppol2tp.s_session = c->ourcid;
-        sax.pppol2tp.d_tunnel  = c->container->tid;
-        sax.pppol2tp.d_session = c->cid;
--       if (connect(fd2, (struct sockaddr *)&sax, sizeof(sax)) < 0) {
-+       if (connect(c->fd, (struct sockaddr *)&sax, sizeof(sax)) < 0) {
+@@ -408,6 +412,7 @@ int start_pppd (struct call *c, struct ppp_opts *opts)
+        if (connect(fd2, (struct sockaddr *)&sax, sizeof(sax)) < 0) {
             l2tp_log (LOG_WARNING, "%s: Unable to connect PPPoL2TP socket.\n",
                  __FUNCTION__);
-+           close(c->fd);
++           close(fd2);
             return -EINVAL;
         }
         stropt[pos++] = strdup ("plugin");
-        stropt[pos++] = strdup ("pppol2tp.so");
-        stropt[pos++] = strdup ("pppol2tp");
-        stropt[pos] = (char *) malloc (10);
--       snprintf (stropt[pos], 10, "%d", fd2);
-+       snprintf (stropt[pos], 10, "%d", c->fd);
-         pos++;
-         stropt[pos] = NULL;
-     }
-@@ -513,7 +519,6 @@ int start_pppd (struct call *c, struct ppp_opts *opts)
-         l2tp_log (LOG_WARNING, "%s: Exec of %s failed!\n", __FUNCTION__, PPPD);
-         _exit (1);
-     }
--    close (fd2);
-     pos = 0;
-     while (stropt[pos])
-     {
-@@ -615,6 +620,14 @@ void destroy_tunnel (struct tunnel *t)
+@@ -484,7 +489,7 @@ int start_pppd (struct call *c, struct ppp_opts *opts)
+         dup2 (fd2, 0);
+         dup2 (fd2, 1);
+ 	close(fd2);
+-
++       }
+         /* close all the calls pty fds */
+         st = tunnels.head;
+         while (st)
+@@ -492,12 +497,17 @@ int start_pppd (struct call *c, struct ppp_opts *opts)
+             sc = st->call_head;
+             while (sc)
+             {
+-                close (sc->fd);
++#ifdef USE_KERNEL
++                if (kernel_support) {
++                    close(st->udp_fd); /* tunnel UDP fd */
++                    close(st->pppox_fd); /* tunnel PPPoX fd */
++                } else
++#endif
++                    close (sc->fd); /* call pty fd */
+                 sc = sc->next;
+             }
+             st = st->next;
+         }
+-       }
+ 
+         /* close the UDP socket fd */
+         close (server_socket);
+@@ -615,6 +625,10 @@ void destroy_tunnel (struct tunnel *t)
         the memory pointed to by t->chal_us.vector at some other place */
      if (t->chal_them.vector)
          free (t->chal_them.vector);
-+    if (t->pppox_fd > -1 ) {
-+        shutdown (t->pppox_fd, SHUT_RDWR);
++    if (t->pppox_fd > -1 )
 +        close (t->pppox_fd);
-+    }
-+    if (t->udp_fd > -1 ) {
-+        shutdown (t->udp_fd, SHUT_RDWR);
++    if (t->udp_fd > -1 )
 +        close (t->udp_fd);
-+    }
      free (t);
      free (me);
  }

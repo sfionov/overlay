@@ -1,6 +1,6 @@
 # Copyright 1999-2011 Gentoo Foundation
 # Distributed under the terms of the GNU General Public License v2
-# $Header: /var/cvsroot/gentoo-x86/net-dialup/xl2tpd/xl2tpd-1.3.0.ebuild,v 1.1 2011/09/20 04:49:45 pva Exp $
+# $Header: $
 
 EAPI="4"
 
@@ -8,7 +8,7 @@ inherit eutils toolchain-funcs
 
 DESCRIPTION="A modern version of the Layer 2 Tunneling Protocol (L2TP) daemon"
 HOMEPAGE="http://www.xelerance.com/services/software/xl2tpd/"
-SRC_URI="ftp://ftp.xelerance.com/${PN}/${P}.tar.gz"
+SRC_URI="ftp://ftp.openswan.org/${PN}/${P}.tar.gz"
 
 LICENSE="GPL-2"
 SLOT="0"
@@ -17,13 +17,13 @@ IUSE="dnsretry kernel"
 
 DEPEND="net-libs/libpcap"
 RDEPEND="${DEPEND}
-	kernel? ( >=sys-kernel/linux-headers-2.6.32 )
+	kernel? ( >=sys-kernel/linux-headers-2.6.23 )
 	net-dialup/ppp"
 
 src_prepare() {
 	epatch "${FILESDIR}/${PN}-1.3.0-LDFLAGS.patch"
 	if use kernel; then
-		epatch "${FILESDIR}/${PN}-1.3.0-use-kernel.patch"
+		epatch "${FILESDIR}/${PN}-1.3.0-kernel.patch"
 		sed -i Makefile -e 's|#\(.*-DUSE_KERNEL\)|\1|' || die "sed Makefile enable kernel"
 	fi
 	sed -i Makefile -e 's| -O2 | |g' || die "sed Makefile"
