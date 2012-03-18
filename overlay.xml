@@ -2,12 +2,12 @@
 <!DOCTYPE repositories SYSTEM "repositories.dtd">
 <repositories xmlns="" version="1.0">
   <repo quality="experimental" status="unofficial">
-    <name>sigwall-overlay</name>
-    <description>sig_wall overlay</description>
+    <name>sigwall</name>
+    <description>sigwall overlay</description>
     <homepage>https://github.com/sigwall/overlay</homepage>
     <owner type="project">
       <email>fionov@gmail.com</email>
-      <name>sig_wall@github</name>
+      <name>sigwall@github</name>
     </owner>
     <source type="git">git://github.com/sigwall/overlay.git</source>
     <feed>https://github.com/sigwall/overlay/commits/master.atom</feed>
