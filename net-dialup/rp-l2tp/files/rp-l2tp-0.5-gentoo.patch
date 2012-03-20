@@ -1,0 +1,304 @@
+From c02054cb0461f802a427121af18932a9cfb5ec99 Mon Sep 17 00:00:00 2001
+From: Sergey Fionov <fionov@gmail.com>
+Date: Tue, 20 Mar 2012 16:16:49 +0400
+Subject: [PATCH 1/2] gentoo
+
+---
+ Makefile.in            |   13 +++++++------
+ configure.in           |    1 +
+ handlers/Makefile.in   |    7 ++++---
+ handlers/cmd-control.c |    2 +-
+ handlers/cmd.c         |    2 +-
+ handlers/sync-pppd.c   |    2 +-
+ l2tp.conf              |    3 ++-
+ main.c                 |    4 ++--
+ man/l2tp.conf.5        |   12 ++++++------
+ man/l2tpd.8            |   30 +++++++++++++++---------------
+ utils.c                |    2 +-
+ 11 files changed, 41 insertions(+), 37 deletions(-)
+
+diff --git a/Makefile.in b/Makefile.in
+index bcda84a..4ad1f2a 100644
+--- a/Makefile.in
++++ b/Makefile.in
+@@ -26,12 +26,13 @@ install=@INSTALL@
+ install_dir=@INSTALL@ -d
+ sbindir=@sbindir@
+ sysconfdir=@sysconfdir@
++libdir=@libdir@
+ 
+ OBJS=auth.o debug.o dgram.o main.o md5.o network.o options.o peer.o session.o tunnel.o utils.o
+ EXTRA_LIBS=@LIBEVENT@/*.o -ldl
+ 
+ SRCS=$(OBJS:.o=.c)
+-CFLAGS=@CFLAGS@ -I.. -I@LIBEVENT@ -Wall -Wstrict-prototypes -ansi -pedantic -D_GNU_SOURCE -DVERSION=\"$(VERSION)\" -DPREFIX=\"$(prefix)\" -DSYSCONFDIR=\"$(sysconfdir)\"
++CFLAGS=@CFLAGS@ -I.. -I@LIBEVENT@ -Wall -Wstrict-prototypes -ansi -pedantic -D_GNU_SOURCE -DVERSION=\"$(VERSION)\" -DPREFIX=\"$(prefix)\" -DSYSCONFDIR=\"$(sysconfdir)\" -DLIBDIR=\"$(libdir)\"
+ 
+ TARGETS=l2tpd libl2tp.a handlers
+ 
+@@ -85,13 +86,13 @@ distclean: clean
+ 
+ install: all
+ 	-mkdir -p $(RPM_INSTALL_ROOT)$(DESTDIR)$(sbindir)
+-	$(install) -m 755 -s l2tpd $(RPM_INSTALL_ROOT)$(DESTDIR)$(sbindir)
+-	-mkdir -p $(RPM_INSTALL_ROOT)$(DESTDIR)$(sysconfdir)/l2tp
+-	$(install) -m 644 l2tp.conf $(RPM_INSTALL_ROOT)$(DESTDIR)$(sysconfdir)/l2tp/l2tp.conf.example
++	$(install) -m 755 -s l2tpd $(RPM_INSTALL_ROOT)$(DESTDIR)$(sbindir)/rp-l2tpd
++	-mkdir -p $(RPM_INSTALL_ROOT)$(DESTDIR)$(sysconfdir)/rp-l2tp
++	$(install) -m 644 l2tp.conf $(RPM_INSTALL_ROOT)$(DESTDIR)$(sysconfdir)/rp-l2tp/rp-l2tpd.conf.example
+ 	-mkdir -p $(RPM_INSTALL_ROOT)$(DESTDIR)$(mandir)/man8
+ 	-mkdir -p $(RPM_INSTALL_ROOT)$(DESTDIR)$(mandir)/man5
+-	$(install) -m 644 man/l2tpd.8 $(RPM_INSTALL_ROOT)$(DESTDIR)$(mandir)/man8
+-	$(install) -m 644 man/l2tp.conf.5 $(RPM_INSTALL_ROOT)$(DESTDIR)$(mandir)/man5
++	$(install) -m 644 man/l2tpd.8 $(RPM_INSTALL_ROOT)$(DESTDIR)$(mandir)/man8/rp-l2tpd.8
++	$(install) -m 644 man/l2tp.conf.5 $(RPM_INSTALL_ROOT)$(DESTDIR)$(mandir)/man5/rp-l2tpd.conf.5
+ 
+ 	$(MAKE) -C handlers install
+ 
+diff --git a/configure.in b/configure.in
+index 0b8890c..9c49a1c 100644
+--- a/configure.in
++++ b/configure.in
+@@ -6,6 +6,7 @@ dnl Checks for programs.
+ AC_PROG_CC
+ AC_PROG_INSTALL
+ AC_PROG_RANLIB
++AC_CHECK_TOOL(AR, ar, :)
+ 
+ dnl Checks for libraries.
+ dnl Replace `main' with a function in -ldl:
+diff --git a/handlers/Makefile.in b/handlers/Makefile.in
+index 933fa45..f1dc219 100644
+--- a/handlers/Makefile.in
++++ b/handlers/Makefile.in
+@@ -9,6 +9,7 @@ docdir=@prefix@/doc/l2tp-$(VERSION)
+ install=@INSTALL@
+ install_dir=@INSTALL@ -d
+ sbindir=@sbindir@
++libdir=@libdir@
+ 
+ HANDLERS=sync-pppd.so cmd.so
+ 
+@@ -39,9 +40,9 @@ clean:
+ 
+ install: all
+ 	-mkdir -p $(RPM_INSTALL_ROOT)$(sbindir)
+-	-mkdir -p $(RPM_INSTALL_ROOT)$(prefix)/lib/l2tp/plugins
+-	$(install) -m 755 -s l2tp-control $(RPM_INSTALL_ROOT)$(sbindir)
+-	$(install) -m 755 $(HANDLERS) $(RPM_INSTALL_ROOT)$(prefix)/lib/l2tp/plugins
++	-mkdir -p $(RPM_INSTALL_ROOT)$(libdir)/rp-l2tpd/plugins
++	$(install) -m 755 -s l2tp-control $(RPM_INSTALL_ROOT)$(sbindir)/rp-l2tpd-control
++	$(install) -m 755 $(HANDLERS) $(RPM_INSTALL_ROOT)$(libdir)/rp-l2tpd/plugins
+ 
+ distclean: clean
+ 	rm -f Makefile
+diff --git a/handlers/cmd-control.c b/handlers/cmd-control.c
+index 072c975..4aed4e9 100644
+--- a/handlers/cmd-control.c
++++ b/handlers/cmd-control.c
+@@ -52,7 +52,7 @@ send_cmd(char const *cmd)
+ 
+     memset(&addr, 0, sizeof(addr));
+     addr.sun_family = AF_LOCAL;
+-    strncpy(addr.sun_path, "/var/run/l2tpctrl", sizeof(addr.sun_path) - 1);
++    strncpy(addr.sun_path, "/var/run/rp-l2tpdctrl", sizeof(addr.sun_path) - 1);
+ 
+     fd = socket(AF_LOCAL, SOCK_STREAM, 0);
+     if (fd < 0) {
+diff --git a/handlers/cmd.c b/handlers/cmd.c
+index 6e278cd..5faf0d8 100644
+--- a/handlers/cmd.c
++++ b/handlers/cmd.c
+@@ -162,7 +162,7 @@ process_option(EventSelector *es,
+ 
+     /* We have hit the end of our options.  Open command socket */
+     if (!sockname) {
+-	sockname = "/var/run/l2tpctrl";
++	sockname = "/var/run/rp-l2tpdctrl";
+     }
+ 
+     (void) remove(sockname);
+diff --git a/handlers/sync-pppd.c b/handlers/sync-pppd.c
+index 02903e0..9408d34 100644
+--- a/handlers/sync-pppd.c
++++ b/handlers/sync-pppd.c
+@@ -34,7 +34,7 @@ static char const RCSID[] =
+ #define MAX_FDS 256
+ 
+ /* Use management tunnel socket under 2.6.23+ */
+-/* #define PPPOL2TP_V1 */
++#define PPPOL2TP_V1
+ 
+ extern int pty_get(int *mfp, int *sfp);
+ static int establish_tunnel(l2tp_tunnel *tun);
+diff --git a/l2tp.conf b/l2tp.conf
+index d32263d..377777f 100644
+--- a/l2tp.conf
++++ b/l2tp.conf
+@@ -19,7 +19,8 @@ lac-pppd-opts "user example name example noipdefault ipcp-accept-local ipcp-acce
+ # Peer section
+ section peer
+ peer 192.168.2.3
+-secret s3cr3t
++# tunnel secrets is not supported by this version in rp-l2tp
++# secret notSupported
+ port 1701
+ lac-handler sync-pppd
+ lns-handler sync-pppd
+diff --git a/main.c b/main.c
+index f1312c1..b60e299 100644
+--- a/main.c
++++ b/main.c
+@@ -28,7 +28,7 @@ static char const RCSID[] =
+ static void
+ usage(int argc, char *argv[], int exitcode)
+ {
+-    fprintf(stderr, "\nl2tpd Version %s Copyright 2002 Roaring Penguin Software Inc.\n", VERSION);
++    fprintf(stderr, "\nrp-l2tpd Version %s Copyright 2002 Roaring Penguin Software Inc.\n", VERSION);
+     fprintf(stderr, "http://www.roaringpenguin.com/\n\n");
+     fprintf(stderr, "Usage: %s [options]\n", argv[0]);
+     fprintf(stderr, "Options:\n");
+@@ -83,7 +83,7 @@ main(int argc, char *argv[])
+     l2tp_peer_init();
+     l2tp_debug_set_bitmask(debugmask);
+ 
+-    if (l2tp_parse_config_file(es, SYSCONFDIR"/l2tp/l2tp.conf") < 0) {
++    if (l2tp_parse_config_file(es, SYSCONFDIR"/rp-l2tp/rp-l2tpd.conf") < 0) {
+ 	l2tp_die();
+     }
+ 
+diff --git a/man/l2tp.conf.5 b/man/l2tp.conf.5
+index 9c498d2..3088cef 100644
+--- a/man/l2tp.conf.5
++++ b/man/l2tp.conf.5
+@@ -1,13 +1,13 @@
+ .\" $Id: l2tp.conf.5 3323 2011-09-21 18:45:48Z lly.dev $ 
+ .\" LIC: GPL
+-.TH L2TP.CONF 5 "11 March 2002"
++.TH RP-L2TPD.CONF 5 "11 March 2002"
+ .\""
+ .UC 4
+ .SH NAME
+-l2tp.conf \- L2TP configuration file
++rp-l2tpd.conf \- L2TP configuration file
+ .SH DESCRIPTION
+-The \fBl2tp.conf\fP file contains the configuration for
+-the L2TP daemon \fBl2tpd\fP(8).
++The \fBrp-l2tpd.conf\fP file contains the configuration for
++the L2TP daemon \fBrp-l2tpd\fP(8).
+ Each line in the file takes one of the following forms:
+ .\"
+ .IP "# \fIcomment\fR"
+@@ -155,9 +155,9 @@ This section is available only if you have used \fBload-handler cmd.so\fR
+ in the global section.  The only option available is:
+ .IP "\fBsocket-path\fP \fIpathname\fR"
+ Specifies the path name of the UNIX-domain socket for controlling the
+-daemon.  Defaults to \fI/var/run/l2tpctrl\fR.
++daemon.  Defaults to \fI/var/run/rp-l2tpdctrl\fR.
+ .PP
+ Even if you do not supply any options to cmd, you \fImust\fR have
+ a \fBsection cmd\fR line to activate the handler.
+ .SH AUTHORS
+-\fBl2tpd\fR was written by David F. Skoll <dfs@roaringpenguin.com>.
++\fBrp-l2tpd\fR was written by David F. Skoll <dfs@roaringpenguin.com>.
+diff --git a/man/l2tpd.8 b/man/l2tpd.8
+index 2f7c00d..e9143fb 100644
+--- a/man/l2tpd.8
++++ b/man/l2tpd.8
+@@ -1,14 +1,14 @@
+ .\" $Id: l2tpd.8 3323 2011-09-21 18:45:48Z lly.dev $ 
+ .\" LIC: GPL
+-.TH L2TPD 8 "11 March 2002"
++.TH RP-L2TPD 8 "11 March 2002"
+ .UC 4
+ .SH NAME
+-l2tpd \- user-space L2TP daemon.
++rp-l2tpd \- user-space L2TP daemon.
+ .SH SYNOPSIS
+-.B l2tpd \fR[\fIoptions\fR]
++.B rp-l2tpd \fR[\fIoptions\fR]
+ 
+ .SH DESCRIPTION
+-\fBl2tpd\fR is a user-space L2TP daemon.  L2TP is the Layer Two
++\fBrp-l2tpd\fR is a user-space L2TP daemon.  L2TP is the Layer Two
+ Tunneling Protocol described in RFC 2661.  It allows you to tunnel
+ PPP sessions over a network or transport protocol (in this case, UDP.)
+ 
+@@ -16,50 +16,50 @@ PPP sessions over a network or transport protocol (in this case, UDP.)
+ .TP
+ .B \-d \fInum\fR
+ Sets the debug level to \fInum\fR.  Of interest mostly to
+-\fBl2tpd\fR developers.  \fInum\fR is a bitmask; set it to
++\fBrp-l2tpd\fR developers.  \fInum\fR is a bitmask; set it to
+ 65535 for maximum debugging information.
+ 
+ .TP
+ .B \-f
+-Do not fork.  Normally, \fBl2tpd\fR forks and puts itself in the
++Do not fork.  Normally, \fBrp-l2tpd\fR forks and puts itself in the
+ background.  This option causes it to stay running in the foreground.
+ 
+ .SH L2TPD ARCHITECTURE
+ 
+-The \fBl2tpd\fR program itself contains \fIonly\fR code necessary
++The \fBrp-l2tpd\fR program itself contains \fIonly\fR code necessary
+ for processing L2TP datagrams and maintaining L2TP tunnels and
+ sessions.  It does \fInot\fR contain code for interacting with
+ \fBpppd\fR or for users to control session establishment and teardown.
+ These functions are performed by \fIhandlers\fR, which are
+ shared-object libraries dynamically loaded at run-time.
+ .PP
+-The handlers currently distributed with \fBl2tpd\fR include:
++The handlers currently distributed with \fBrp-l2tpd\fR include:
+ .TP
+ .B sync-pppd.so
+-A shared-library which interfaces with \fBpppd\fR and allows \fBl2tpd\fR
++A shared-library which interfaces with \fBpppd\fR and allows \fBrp-l2tpd\fR
+ to act as both an LAC and an LNS.
+ .TP
+ .B cmd.so
+ A simple command-interpreter which listens on a UNIX-domain socket
+ and allows you to start and stop L2TP sessions.
+ .PP
+-\fBl2tpd\fR is a single-threaded, event-driven program.  It should be
++\fBrp-l2tpd\fR is a single-threaded, event-driven program.  It should be
+ fairly lightweight and efficient.
+ 
+ .SH L2TPD CONFIGURATION
+-On startup, \fBl2tpd\fR reads the configuration file \fB/etc/l2tp/l2tp.conf\fR.
++On startup, \fBrp-l2tpd\fR reads the configuration file \fB/etc/rp-l2tp/rp-l2tpd.conf\fR.
+ This configuration file sets operating parameters, describes peers and loads
+-and configures handlers.  See \fBl2tp.conf\fR(5) for configuration
++and configures handlers.  See \fBrp-l2tp.conf\fR(5) for configuration
+ file details.
+ 
+ .SH FILES
+ .TP
+-.B /etc/l2tp/l2tp.conf
++.B /etc/rp-l2tp/rp-l2tp.conf
+ Main configuration file.
+ .TP
+-.B /var/run/l2tpctrl
++.B /var/run/rp-l2tpdctrl
+ Control socket for \fBcmd.so\fR handler.
+ 
+ .SH AUTHORS
+-\fBl2tpd\fR was written by David F. Skoll <dfs@roaringpenguin.com>.
++\fBrp-l2tpd\fR was written by David F. Skoll <dfs@roaringpenguin.com>.
+ 
+diff --git a/utils.c b/utils.c
+index 6206360..8c89eb0 100644
+--- a/utils.c
++++ b/utils.c
+@@ -199,7 +199,7 @@ l2tp_load_handler(EventSelector *es,
+     if (*fname == '/') {
+ 	handle = dlopen(fname, RTLD_NOW);
+     } else {
+-	snprintf(buf, sizeof(buf), PREFIX"/lib/l2tp/plugins/%s", fname);
++	snprintf(buf, sizeof(buf), LIBDIR"/rp-l2tpd/plugins/%s", fname);
+ 	buf[sizeof(buf)-1] = 0;
+ 	handle = dlopen(buf, RTLD_NOW);
+     }
+-- 
+1.7.8.5
+

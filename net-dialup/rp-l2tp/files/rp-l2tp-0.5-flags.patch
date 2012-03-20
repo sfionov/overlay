@@ -1,0 +1,52 @@
+From c551f2ebd3c7759768aa8a0548062237dcb995cc Mon Sep 17 00:00:00 2001
+From: Sergey Fionov <fionov@gmail.com>
+Date: Tue, 20 Mar 2012 16:17:08 +0400
+Subject: [PATCH 2/2] flags
+
+---
+ Makefile.in          |    2 +-
+ handlers/Makefile.in |    6 +++---
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/Makefile.in b/Makefile.in
+index 4ad1f2a..4077cf7 100644
+--- a/Makefile.in
++++ b/Makefile.in
+@@ -45,7 +45,7 @@ libl2tp.a: $(OBJS)
+ 
+ l2tpd: libl2tp.a libevent/libevent.a
+ 	$(MAKE) -C handlers
+-	@CC@ -o l2tpd -rdynamic $(OBJS) $(EXTRA_LIBS)
++	@CC@ $(LDFLAGS) -o l2tpd -rdynamic $(OBJS) $(EXTRA_LIBS)
+ 
+ libevent/libevent.a:
+ 	test -d libevent || ln -s ../libevent .
+diff --git a/handlers/Makefile.in b/handlers/Makefile.in
+index f1dc219..2b6936d 100644
+--- a/handlers/Makefile.in
++++ b/handlers/Makefile.in
+@@ -20,7 +20,7 @@ CFLAGS=@CFLAGS@ -I.. -I../@LIBEVENT@ -I. -Wall
+ all: $(HANDLERS) l2tp-control
+ 
+ l2tp-control: cmd-control.o
+-	@CC@ -o l2tp-control cmd-control.o
++	@CC@ $(LDFLAGS) -o l2tp-control cmd-control.o
+ 
+ cmd-control.o: cmd-control.c
+ 	@CC@ -c -o $@ $^
+@@ -29,10 +29,10 @@ cmd-control.o: cmd-control.c
+ 	@CC@ $(CFLAGS) -fPIC -c -o $@ $<
+ 
+ sync-pppd.so: pty.o sync-pppd.o
+-	@CC@ -shared -o $@ $^
++	@CC@ $(LDFLAGS) -shared -o $@ $^
+ 
+ cmd.so: cmd.o dstring.o
+-	@CC@ -shared -o $@ $^
++	@CC@ $(LDFLAGS) -shared -o $@ $^
+ 
+ clean:
+ 	rm -f *.so *.o *~
+-- 
+1.7.8.5
+
