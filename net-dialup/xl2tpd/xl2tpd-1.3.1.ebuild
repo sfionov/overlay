@@ -28,6 +28,7 @@ src_prepare() {
 	fi
 	sed -i Makefile -e 's| -O2 | |g' || die "sed Makefile"
 	use dnsretry && epatch "${FILESDIR}/${PN}-dnsretry.patch"
+	epatch "${FILESDIR}/${PN}-1.3.1-Wunused.patch"
 }
 
 src_compile() {
