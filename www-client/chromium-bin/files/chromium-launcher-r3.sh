@@ -29,4 +29,4 @@ esac
 # Set the .desktop file name
 export CHROME_DESKTOP="chromium-devel.desktop"
 
-exec -a "chromium-devel" "$PROGDIR/chrome" --extra-plugin-dir=/usr/lib/nsbrowser/plugins ${CHROMIUM_FLAGS} "$@"
+exec -a "chromium-devel" "$PROGDIR/chrome" --disable-setuid-sandbox --extra-plugin-dir=/usr/lib/nsbrowser/plugins ${CHROMIUM_FLAGS} "$@"
