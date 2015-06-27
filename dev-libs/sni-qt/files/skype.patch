@@ -1,0 +1,73 @@
+=== modified file 'src/iconcache.cpp'
+--- src/iconcache.cpp	2011-10-10 16:37:00 +0000
++++ src/iconcache.cpp	2015-06-27 10:04:15 +0000
+@@ -128,8 +128,54 @@
+     }
+ }
+ 
+-void IconCache::cacheIcon(const QString& key, const QIcon& icon) const
++void IconCache::cacheIcon(const QString& key, QIcon icon) const
+ {
++    fprintf(stderr, "cacheIcon %s\n", qPrintable(key));
++
++    // Если skype выполняем
++    if (QString::compare(QCoreApplication::applicationFilePath().section('/', -1), "skype") == 0) {
++        QString iconFile;
++        QString hash = QString(key);
++        hash.remove(0, hash.lastIndexOf("_")+1);
++        // Сопоставляем хэшу изображения необходимого файла иконки
++        if (QString::compare("37e170fc54e7355d9d298917e74f9ea9", hash) == 0) { // в сети
++            iconFile = "skype_online.svg";
++        } else
++        if (QString::compare("602c84fa0f4d61c64f770495a500279e", hash) == 0) { // нет на месте
++            iconFile = "skype_away.svg";
++        } else
++        if (QString::compare("bd2e3972c2a97520bbabac7e275d7b9f", hash) == 0) { // не беспокоить
++            iconFile = "skype_busy.svg";
++        } else
++        if (QString::compare("2d1ee5482260fd9cd180b32787792683", hash) == 0) { // не в сети
++            iconFile = "skype_offline.svg";
++        } else
++        if (QString::compare("ad07f7e1479ab81315ec8c6c23e19170", hash) == 0) { // невидимый
++            iconFile = "skype_invisible.svg";
++        } else
++        if (QString::compare("f2fc4a539a7b9553f5b35241d1154e84", hash) == 0) { // загрузка
++            iconFile = "skype_load.svg";
++        } else
++        if (QString::compare("dad77418071bead905e2dbe605715dcd", hash) == 0) { // загрузка
++            iconFile = "skype_load.svg";
++        } else
++        if (QString::compare("6cbeda8e2c9f56d3ac75ccdf8d282a69", hash) == 0) { // загрузка
++            iconFile = "skype_load.svg";
++        } else
++        if (QString::compare("0972e5fde53a4a87346ebb91c4c2b159", hash) == 0) { // загрузка
++            iconFile = "skype_load.svg";
++        }
++        else { // уведомления, пропущенные звонки, непрочитанные сообщения
++            iconFile = "skype_message.svg";
++        }
++        // Загружает и сохраняет в временном каталоге подменяемую иконку
++        iconFile = QString("/usr/share/pixmaps/skype/%1").arg(iconFile);
++        QIcon newIcon = QIcon(iconFile);
++        if (!newIcon.isNull()) {
++            icon = newIcon;
++        }
++    }
++
+     QList<QSize> sizes = icon.availableSizes();
+     if (sizes.isEmpty()) {
+         // sizes can be empty if icon is an SVG. In this case generate images for a few sizes
+
+=== modified file 'src/iconcache.h'
+--- src/iconcache.h	2011-10-10 16:37:00 +0000
++++ src/iconcache.h	2015-06-27 09:55:03 +0000
+@@ -46,7 +46,7 @@
+     QString m_themePath;
+     mutable QStringList m_cacheKeys;
+ 
+-    void cacheIcon(const QString& key, const QIcon&) const;
++    void cacheIcon(const QString& key, QIcon icon) const;
+     void trimCache() const;
+ };
+ 
+
